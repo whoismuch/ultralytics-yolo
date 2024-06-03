@@ -47,7 +47,6 @@ class Yolov5Runnable(bentoml.Runnable):
         self.img = cv2.cvtColor(open_cv_image, cv2.COLOR_RGB2BGR)
         # Get the height and width of the input image
         self.img_height, self.img_width = self.img.shape[:2]
-        print(self.img_height, self.img_width)
         # Convert the image color space from BGR to RGB
         img = cv2.cvtColor(self.img, cv2.COLOR_BGR2RGB)
         # Resize the image to match the input shape
@@ -97,7 +96,6 @@ class Yolov5Runnable(bentoml.Runnable):
 
                 # Extract the bounding box coordinates from the current row
                 x, y, w, h = outputs[i][0], outputs[i][1], outputs[i][2], outputs[i][3]
-                print(x, y, w, h)
 
                 # Calculate the scaled coordinates of the bounding box
                 left = int((x - w / 2) * x_factor)
@@ -143,7 +141,6 @@ class Yolov5Runnable(bentoml.Runnable):
 
         # Perform post-processing on the outputs to obtain output image.
         results = self.postprocess(outputs)
-        print(results)
         # Преобразуем данные в DataFrame
         df = pd.DataFrame(results, columns=['bbox', 'class'])
         return df
