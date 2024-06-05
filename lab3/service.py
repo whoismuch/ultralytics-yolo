@@ -5,10 +5,7 @@ import cv2
 import numpy as np
 import onnxruntime as ort
 import pandas as pd
-import matplotlib.pyplot as plt
-import matplotlib.patches as patches
-from torchvision.ops import boxes
-
+import time
 
 class Yolov5Runnable(bentoml.Runnable):
     SUPPORTED_RESOURCES = ("nvidia.com/gpu", "cpu")
@@ -17,7 +14,7 @@ class Yolov5Runnable(bentoml.Runnable):
     def __init__(self):
         import torch
 
-        self.session = ort.InferenceSession('best.onnx', providers=["CUDAExecutionProvider", "CPUExecutionProvider"])
+        self.session = ort.InferenceSession('best.onnx', providers=["CPUExecutionProvider"])
 
         # Get the model inputs
         self.model_inputs = self.session.get_inputs()
@@ -119,10 +116,6 @@ class Yolov5Runnable(bentoml.Runnable):
             score = scores[i]
             class_id = class_ids[i]
 
-            # w = box[2]/x_factor
-            # h = box[3]/y_factor
-            # x = box[0]/x_factor + w/2
-            # y = box[1]/y_factor + h/2
             results.append((box, class_id))
 
             # Draw the detection on the input image
@@ -135,14 +128,22 @@ class Yolov5Runnable(bentoml.Runnable):
     def inference(self, input_img):
         # Preprocess the image data
         img_data = self.preprocess(input_img)
-
+        start_time = time.time()
         # Run inference using the preprocessed image data
         outputs = self.session.run(None, {self.model_inputs[0].name: img_data})
+        end_time = time.time()
+        inference_time = end_time - start_time
 
         # Perform post-processing on the outputs to obtain output image.
         results = self.postprocess(outputs)
+
+        print(results)
         # Преобразуем данные в DataFrame
-        df = pd.DataFrame(results, columns=['bbox', 'class'])
+        if results != []:
+            df = pd.DataFrame(results, columns=['bbox', 'class'])
+            df['inference_time'] = inference_time
+        else:
+            df = pd.DataFrame([inference_time], columns=['inference_time'])
         return df
 
 
