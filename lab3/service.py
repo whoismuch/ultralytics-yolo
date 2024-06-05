@@ -14,7 +14,7 @@ class Yolov5Runnable(bentoml.Runnable):
     def __init__(self):
         import torch
 
-        self.session = ort.InferenceSession('best.onnx', providers=["CPUExecutionProvider"])
+        self.session = ort.InferenceSession('best.onnx', providers=["CUDAExecutionProvider"])
 
         # Get the model inputs
         self.model_inputs = self.session.get_inputs()
@@ -59,55 +59,40 @@ class Yolov5Runnable(bentoml.Runnable):
 
 
     def postprocess(self, output):
-        """
-        Performs post-processing on the model's output to extract bounding boxes, scores, and class IDs.
-
-        """
         # Transpose and squeeze the output to match the expected shape
         outputs = np.transpose(np.squeeze(output[0]))
-
         # Get the number of rows in the outputs array
         rows = outputs.shape[0]
-
         # Lists to store the bounding boxes, scores, and class IDs of the detections
         boxes = []
         scores = []
         class_ids = []
-
         # Calculate the scaling factors for the bounding box coordinates
         x_factor = self.img_width / self.input_width
         y_factor = self.img_height / self.input_height
-
         # Iterate over each row in the outputs array
         for i in range(rows):
             # Extract the class scores from the current row
             classes_scores = outputs[i][4:]
-
             # Find the maximum score among the class scores
             max_score = np.amax(classes_scores)
-
             # If the maximum score is above the confidence threshold
             if max_score >= 0.5:
                 # Get the class ID with the highest score
                 class_id = np.argmax(classes_scores)
-
                 # Extract the bounding box coordinates from the current row
                 x, y, w, h = outputs[i][0], outputs[i][1], outputs[i][2], outputs[i][3]
-
                 # Calculate the scaled coordinates of the bounding box
                 left = int((x - w / 2) * x_factor)
                 top = int((y - h / 2) * y_factor)
                 width = int(w * x_factor)
                 height = int(h * y_factor)
-
                 # Add the class ID, score, and box coordinates to the respective lists
                 class_ids.append(class_id)
                 scores.append(max_score)
                 boxes.append([left, top, width, height])
-
         # Apply non-maximum suppression to filter out overlapping bounding boxes
         indices = cv2.dnn.NMSBoxes(boxes, scores, 0.5, 0.5)
-
         results = []
         # Iterate over the selected indices after non-maximum suppression
         for i in indices:
@@ -115,12 +100,7 @@ class Yolov5Runnable(bentoml.Runnable):
             box = boxes[i]
             score = scores[i]
             class_id = class_ids[i]
-
             results.append((box, class_id))
-
-            # Draw the detection on the input image
-            # self.draw_detections(input_image, box, score, class_id)
-
         # Return the modified input image
         return results
 
@@ -137,8 +117,6 @@ class Yolov5Runnable(bentoml.Runnable):
         # Perform post-processing on the outputs to obtain output image.
         results = self.postprocess(outputs)
 
-        print(results)
-        # Преобразуем данные в DataFrame
         if results != []:
             df = pd.DataFrame(results, columns=['bbox', 'class'])
             df['inference_time'] = inference_time
